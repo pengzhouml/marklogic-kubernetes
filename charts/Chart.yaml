@@ -18,3 +18,4 @@ sources:
   - https://github.com/marklogic/marklogic-kubernetes
   - https://www.marklogic.com/
 version: 2.2.0
+
