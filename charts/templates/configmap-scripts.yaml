@@ -323,10 +323,16 @@ data:
         local expected_response_code=$1; shift
         local curl_options=("$@")
 
+        info "curl_retry_validate"
+        info "endpoint: ${endpoint}"
+
         for ((retry_count = 0; retry_count < N_RETRY; retry_count = retry_count + 1)); do
             response=$(curl -v -m 30 -w '%{http_code}' "${curl_options[@]}" "$endpoint")
+            info "curl response: ${response}"
             response_code=$(tail -n1 <<< "$response")
             response_content=$(sed '$ d' <<< "$response")
+            info "curl response code: ${response_code}"
+            info "curl response content: ${response_content}"
             if [[ ${response_code} -eq ${expected_response_code} ]]; then
                 return ${response_code}
             else
@@ -457,7 +463,7 @@ data:
                 "--data-urlencode" "admin-username=${MARKLOGIC_ADMIN_USERNAME}" "--data-urlencode" "admin-password=${MARKLOGIC_ADMIN_PASSWORD}" \
                 "--data-urlencode" "realm=${ML_REALM}" "--data-urlencode" "${MARKLOGIC_WALLET_PASSWORD_PAYLOAD}"
 
-            restart_check "${MARKLOGIC_BOOTSTRAP_HOST}" "${timestamp}"
+            # restart_check "${MARKLOGIC_BOOTSTRAP_HOST}" "${timestamp}"
 
             info "bootstrap security initialized"
             return 0
@@ -589,26 +595,37 @@ data:
                 info "current_group: $current_group"
                 info "group_cfg: $group_cfg"
 
-                response_code=$( \
-                    curl -s --anyauth \
-                    --user ${MARKLOGIC_ADMIN_USERNAME}:${MARKLOGIC_ADMIN_PASSWORD} \
-                    -w '%{http_code}' --retry 5 \
-                    -X PUT \
-                    -H "Content-type: application/json" \
-                    $LOCAL_HTTPS_OPTION -d "${group_cfg}" \
-                    $LOCAL_HTTP_PROTOCOL://${MARKLOGIC_BOOTSTRAP_HOST}:8002/manage/v2/groups/${current_group}/properties \
-                )
+                # response_code=$( \
+                #     curl -s --anyauth \
+                #     --user ${MARKLOGIC_ADMIN_USERNAME}:${MARKLOGIC_ADMIN_PASSWORD} \
+                #     -w '%{http_code}' --retry 5 \
+                #     -X PUT \
+                #     -H "Content-type: application/json" \
+                #     $LOCAL_HTTPS_OPTION -d "${group_cfg}" \
+                #     $LOCAL_HTTP_PROTOCOL://${MARKLOGIC_BOOTSTRAP_HOST}:8002/manage/v2/groups/${current_group}/properties \
+                # )
+
+                info "updating group"
+                curl -v --anyauth \
+                --user ${MARKLOGIC_ADMIN_USERNAME}:${MARKLOGIC_ADMIN_PASSWORD} \
+                --retry 5 \
+                -X PUT \
+                -H "Content-type: application/json" \
+                $LOCAL_HTTPS_OPTION -d "${group_cfg}" \
+                $LOCAL_HTTP_PROTOCOL://${MARKLOGIC_BOOTSTRAP_HOST}:8002/manage/v2/groups/${current_group}/properties
+                
+                response_code=$?
 
                 info "response_code: $response_code"
 
-                if [[ "${response_code}" = "204" ]]; then
-                    info "group \"${current_group}\" updated"
-                elif [[ "${response_code}" = "202" ]]; then
-                    # Note: THIS SHOULD NOT HAPPEN WITH THE CURRENT GROUP CONFIG
-                    info "group \"${current_group}\" updated and a restart of all hosts in the group was triggered"
-                else
-                    info "unexpected response when updating group \"${current_group}\": ${response_code}"
-                fi
+                # if [[ "${response_code}" = "204" ]]; then
+                #     info "group \"${current_group}\" updated"
+                # elif [[ "${response_code}" = "202" ]]; then
+                #     # Note: THIS SHOULD NOT HAPPEN WITH THE CURRENT GROUP CONFIG
+                #     info "group \"${current_group}\" updated and a restart of all hosts in the group was triggered"
+                # else
+                #     info "unexpected response when updating group \"${current_group}\": ${response_code}"
+                # fi
             else
                 info "failed to get current group, response code: ${response_code}"
             fi
